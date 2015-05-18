@@ -1,0 +1,37 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# Home page
+GET        /                             controllers.FilesController.index
+GET        /ws/:id                       controllers.FilesController.ws(id: String)
+GET        /test                         controllers.FilesController.test
+
+# files controller
+GET        /service/files                     controllers.FilesController.listRoot
+GET        /service/files/                    controllers.FilesController.listRoot
+GET        /service/files/*file               controllers.FilesController.list(file: String)
+GET        /service/updateFiles               controllers.FilesController.updateFiles
+GET        /service/update/:id/:status        controllers.FilesController.updateFile(id: Long, status: Int)
+
+# now playing
+GET        /playing/play                 controllers.PlayerController.player_play
+GET        /playing/pause                controllers.PlayerController.player_pause
+GET        /playing/stop                 controllers.PlayerController.player_stop
+
+GET        /playing/scene_back           controllers.PlayerController.player_scene_back
+GET        /playing/scene_forward        controllers.PlayerController.player_scene_forward
+
+GET        /playing/frame_back           controllers.PlayerController.player_frame_back
+GET        /playing/frame_forward        controllers.PlayerController.player_frame_forward
+
+GET        /playing/previous_file        controllers.PlayerController.player_previous_file
+GET        /playing/next_file            controllers.PlayerController.player_next_file
+
+GET        /playing/websocket            controllers.PlayerController.playing_websocket
+
+# Map static resources from the /public folder to the /assets URL path
+GET        /assets/*file                 controllers.Assets.at(path="/public", file)
+
+# Log, just as debug porpuse
+GET        /debug/log                    controllers.FilesController.get_log
