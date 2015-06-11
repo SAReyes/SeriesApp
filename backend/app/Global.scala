@@ -13,7 +13,7 @@ import scala.slick.driver.H2Driver.simple._
 
 object Global extends GlobalSettings {
 
-  var t: Thread = null
+  var myRunnable: WSRunnable = null
 
   override def onStart(app: Application) = {
     Logger.info("init")
@@ -25,11 +25,11 @@ object Global extends GlobalSettings {
       }
     }
     val listener = Akka.system.actorOf(Props[WSListener], name = "playing_ws")
-    t = new Thread(new WSRunnable(listener))
-    t.start()
+    myRunnable = new WSRunnable(listener)
+    new Thread(myRunnable).start()
   }
 
   override def onStop(app: Application): Unit = {
-    t.stop()
+    myRunnable.stop()
   }
 }

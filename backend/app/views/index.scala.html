@@ -1,7 +1,29 @@
-@(message: String)
+<!DOCTYPE html>
 
-@main("Welcome to Play") {
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, width=device-width">
 
-    @play20.welcome(message)
+        <title>PiSeries</title>
+        <link rel="shortcut icon" type="image/png" href="@routes.Assets.at("images/favicon.png")">
 
-}
+        <link href="@routes.Assets.at("lib/ionic/css/ionic.css")" rel="stylesheet">
+        <link rel="stylesheet" media="screen" href="@routes.Assets.at("stylesheets/main.css")">
+
+        <script type="text/javascript" src="@routes.Assets.at("lib/ionic/js/ionic.bundle.min.js")"></script>
+
+        <script type="text/javascript" src="@routes.Assets.at("javascripts/app.js")"></script>
+
+        <script type="text/javascript" src="@routes.Assets.at("controllers/fileManagerCtrl.js")"></script>
+        <script type="text/javascript" src="@routes.Assets.at("controllers/playerCtrl.js")"></script>
+    </head>
+    <body ng-app="app">
+
+        <ion-nav-bar class="bar-stable">
+            <ion-nav-back-button></ion-nav-back-button>
+        </ion-nav-bar>
+        
+        <ion-nav-view></ion-nav-view>
+    </body>
+</html>

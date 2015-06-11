@@ -150,7 +150,7 @@ object DBFiles {
   /**
    * Removes a file from the database
    */
-  def remove(file: DBFile) = {
+  def remove(file: DBFile)(implicit s: Session) = {
     files.filter(_.id === file.id).delete
   }
   /**

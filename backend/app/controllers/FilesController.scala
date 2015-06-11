@@ -37,8 +37,9 @@ object FilesController extends Controller {
    */
   var player_port = play.Play.application().configuration().getString("pi.players.mpc.port")
 
-  def index = Action {
-    Ok(views.html.index("Your new application is ready."))
+  def index(any: String) = Action {
+    Logger.info(s"Index: $any")
+    Ok(views.html.index())
   }
 
   def ws(id: String) = WebSocket.acceptWithActor[String, String] {

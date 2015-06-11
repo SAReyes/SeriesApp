@@ -6,11 +6,15 @@ import util.WSResponse
 
 class WSRunnable(listener: ActorRef) extends Runnable {
 
+  var running = true
+
+  def stop() = running = false
+
   var prev_r: WSResponse = WSResponse(-1, null, -1, -1)
 
   // TODO: Verify which player is been used
   override def run() = {
-    while (true) {
+    while (running) {
       // Verify the player current state
       PlayerController.player.get_variables() match {
         case Some(ws) =>
