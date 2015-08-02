@@ -3,7 +3,8 @@ package player
 import java.io.{FileNotFoundException, File}
 import java.net.ConnectException
 
-import controllers.PlayerController
+import concurrency.actors.UpdateMsg
+import controllers.{FilesController, PlayerController}
 import models.DBFiles
 import org.ccil.cowan.tagsoup.jaxp.SAXFactoryImpl
 import org.xml.sax.InputSource
@@ -36,11 +37,21 @@ case class MPCPlayer(exec: String, web_port: Int) extends Player {
   override val url: String = s"http://localhost:$web_port"
   val url_cmd = s"$url/command.html"
 
-  private def exec_cmd(cmd: Int) = {
-    val dummy = WS.url(url_cmd).withQueryString("wm_command" -> cmd.toString).get()
+  private def execCmd(cmd: Int, name: String, params: (String, String)*) = {
+
+    var request = WS.url(url_cmd).withQueryString(("wm_command", cmd.toString))
+
+    // Set extra parameters
+    for (param <- params) {
+      request = request.withQueryString(param)
+    }
+
+    // Make the http call
+    val dummy = request.get()
     try {
       val response = Await.result(dummy, 500.milli).status
-      Logger.info(s"response to cmd($cmd): $response")
+      Logger.info(s"[PLAYER} Request to $url_cmd | action: $name " +
+        s"| params: ${request.queryString} | response: $response")
       response
     }
     catch {
@@ -50,26 +61,28 @@ case class MPCPlayer(exec: String, web_port: Int) extends Player {
     }
   }
 
-  override def play() = exec_cmd(CMD_PLAY)
 
-  override def stop() = exec_cmd(CMD_STOP)
+  override def setVolume(i: Int): Unit = execCmd(-2, "volume", ("volume", i.toString))
 
-  override def pause() = exec_cmd(CMD_PAUSE)
+  override def play() = execCmd(CMD_PLAY, "play")
 
-  override def scene_back(): Int = exec_cmd(CMD_SCENE_BACK)
+  override def stop() = execCmd(CMD_STOP, "stop")
 
-  override def scene_forward(): Int = exec_cmd(CMD_SCENE_FORWARD)
+  override def pause() = execCmd(CMD_PAUSE, "pause")
 
-  override def frame_back(): Int = exec_cmd(CMD_FRAME_BACK)
+  override def scene_back(): Int = execCmd(CMD_SCENE_BACK, "scene back")
 
-  override def frame_forward(): Int = exec_cmd(CMD_FRAME_FORWARD)
+  override def scene_forward(): Int = execCmd(CMD_SCENE_FORWARD, "scene forward")
 
-  override def previous_file(): Int = exec_cmd(CMD_PREVIOUS_FILE)
+  override def frame_back(): Int = execCmd(CMD_FRAME_BACK, "frame back")
 
-  override def next_file(): Int = {
-    exec_cmd(CMD_NEXT_FILE)
-  }
+  override def frame_forward(): Int = execCmd(CMD_FRAME_FORWARD, "frame forward")
 
+  override def previous_file(): Int = execCmd(CMD_PREVIOUS_FILE, "previous file")
+
+  override def next_file(): Int = execCmd(CMD_NEXT_FILE, "next file")
+
+  // This works as it is supposed just to be one file played at a given time
   var current_file = ""
   var current_position = 0L
   var current_file_duration = Long.MaxValue
@@ -83,13 +96,13 @@ case class MPCPlayer(exec: String, web_port: Int) extends Player {
 
   override def get_variables(): Option[WSResponse] = {
     try {
-      Await.result(WS.url(url + "/variables.html").get(), 300.milli)
+      Await.result(WS.url(url + "/variables.html").get(), 750.milli)
       val feed = adapter.loadXML(source, parser)
 
-      if(feed == null){
+      if (feed == null) {
         // something goes wrong as the web interface didn't load properly
         Logger.info("The webinterface is returning null when parsing?")
-        Some(WSResponse(current_position, current_file, current_volume, current_state))
+        Some(WSResponse(current_file, current_position, current_file_duration, current_volume, current_state))
       } else {
         val position = (feed \\ "body" \\ "p")
           .filter(e => (e \\ "@id").text == "position")
@@ -105,6 +118,10 @@ case class MPCPlayer(exec: String, web_port: Int) extends Player {
           .filter(e => (e \\ "@id").text == "volumelevel")
           .text.toInt
 
+        // -1 -> N/A, triggered by no file
+        // 0 -> stopped
+        // 1 -> paused, when paused, goes into this when the file finishes as well
+        // 2 -> playing
         val state = (feed \\ "body" \\ "p")
           .filter(e => (e \\ "@id").text == "state")
           .text.toInt
@@ -117,57 +134,54 @@ case class MPCPlayer(exec: String, web_port: Int) extends Player {
         //          update_file_info()
         //        }
 
-        if(state != -1){
+        if (state != -1) {
           current_file = file_path
           current_position = position
-          current_file_duration = if(duration == 0) Long.MaxValue else duration
+          current_file_duration = if (duration == 0) Long.MaxValue else duration
           current_state = state
           current_volume = volume
-          Some(WSResponse(position, file_path, volume, state))
+          Some(WSResponse(file_path, position, duration, volume, state))
         }
         else {
-          Some(WSResponse(current_position, current_file, current_volume, current_state))
+          Some(WSResponse(current_file, current_position, current_file_duration, current_volume, current_state))
         }
       }
-//      }
+      //      }
 
     }
     catch {
-      case e: TimeoutException =>
-//        if (!current_file.isEmpty) {
-//          // this means the web interface was closed
-//          update_file_info()
-//        }
-        None
-      case e: ConnectException =>
-        None
-      case e: FileNotFoundException =>
-        // Srsly? couldn't find the endpoint? TimeoutException should've gone off
+      case e @ (_ : TimeoutException | _ : ConnectException | _ : FileNotFoundException ) =>
         None
     }
   }
 
-  def update_file_info() = {
+  def update_file_info(data: WSResponse) = this.synchronized {
     val database = Database.forDataSource(DB.getDataSource())
     database withSession { implicit rs =>
-      val f = new File(current_file)
-      if (current_file_duration - current_position <= PlayerController.tolerance) {
-        Logger.info("Updated by tolerance: " + (current_file_duration,current_position,PlayerController.tolerance))
-        DBFiles.update(f, DBFiles.FINISHED, 0)
-      }
-      else if (!current_file.isEmpty){
-        if (current_position != 0) {
-          Logger.info("Updated to pause" + (current_file_duration,current_position,PlayerController.tolerance))
-          DBFiles.update(f, DBFiles.PAUSED, current_position)
-        }
-        else if (current_position == 0 && current_state != 2 && current_state != -1) {
-          DBFiles.update(f, DBFiles.NEW, 0)
-        }
+      DBFiles.findByFile(new File(data.file_path)) match {
+        case Some(dbData) =>
+          Logger.info(s"Update: Found this $dbData")
+          if (data.length - data.position <= PlayerController.tolerance) {
+            Logger.info(s"Updating $data to FINISHED by tolerance")
+            DBFiles.updateByID(dbData.id.get, DBFiles.FINISHED, 0)
+          } else {
+            if (data.position != 0) {
+              Logger.info(s"Updating $data to PAUSED)")
+              DBFiles.updateByID(dbData.id.get, DBFiles.PAUSED, current_position)
+            }
+            else if (data.state != 2 && data.state != -1) {
+              Logger.info(s"Updating $data to NEW")
+              DBFiles.updateByID(dbData.id.get, DBFiles.NEW, 0)
+            }
+          }
+        case None =>
+          Logger.info("No database record")
       }
     }
 
     current_file = ""
     current_file_duration = 0L
     current_position = Long.MaxValue
+    FilesController.broadcaster ! UpdateMsg("Current data updated")
   }
 }

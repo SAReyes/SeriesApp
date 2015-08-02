@@ -1,0 +1,11 @@
+<ion-view view-title="{{navTitle}}">
+    <ion-content>
+        <div class="item range">
+            <i class="icon ion-volume-low" ng-click="setVolume(0)"></i>
+            <input ng-model="player.volume" ng-change="volumeChanged()" type="range" name="volume">
+            <i class="icon ion-volume-high" ng-click="setVolume(100)"></i>
+        </div>
+        <button class="button icon ion-{{player.playing ? 'pause': 'play'}}"
+                ng-click="playPause()"></button>
+    </ion-content>
+</ion-view>

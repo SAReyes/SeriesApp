@@ -3,27 +3,36 @@
 <html>
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, width=device-width">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-touch-fullscreen" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black">
 
         <title>PiSeries</title>
         <link rel="shortcut icon" type="image/png" href="@routes.Assets.at("images/favicon.png")">
 
-        <link href="@routes.Assets.at("lib/ionic/css/ionic.css")" rel="stylesheet">
+        <link href="@routes.Assets.at("lib/ionic/release/css/ionic.min.css")" rel="stylesheet">
         <link rel="stylesheet" media="screen" href="@routes.Assets.at("stylesheets/main.css")">
 
-        <script type="text/javascript" src="@routes.Assets.at("lib/ionic/js/ionic.bundle.min.js")"></script>
+        <script type="text/javascript" src="@routes.Assets.at("lib/ionic/release/js/ionic.bundle.min.js")"></script>
+
+        <script type="text/javascript" src="@routes.Assets.at("lib/angular-websocket/dist/angular-websocket.min.js")"></script>
 
         <script type="text/javascript" src="@routes.Assets.at("javascripts/app.js")"></script>
 
-        <script type="text/javascript" src="@routes.Assets.at("controllers/fileManagerCtrl.js")"></script>
-        <script type="text/javascript" src="@routes.Assets.at("controllers/playerCtrl.js")"></script>
+        <script type="text/javascript" src="@routes.Assets.at("modelViews/fileManager/fm_service.js")"></script>
+        <script type="text/javascript" src="@routes.Assets.at("modelViews/fileManager/fm_controller.js")"></script>
+        <script type="text/javascript" src="@routes.Assets.at("modelViews/player/p_controller.js")"></script>
+        <script type="text/javascript" src="@routes.Assets.at("controllers/settingsCtrl.js")"></script>
     </head>
     <body ng-app="app">
 
-        <ion-nav-bar class="bar-stable">
-            <ion-nav-back-button></ion-nav-back-button>
+        <ion-nav-bar class="bar-dark">
+            <ion-nav-back-button class="button-clear">
+                <i class="ion-ios-arrow-back"></i> Back
+            </ion-nav-back-button>
         </ion-nav-bar>
-        
+
         <ion-nav-view></ion-nav-view>
     </body>
 </html>

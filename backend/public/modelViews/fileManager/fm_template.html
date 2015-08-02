@@ -1,0 +1,32 @@
+<ion-view view-title="{{title}}">
+    <ion-content>
+        <ion-refresher
+                pulling-text="Pull to refresh..."
+                on-refresh="doRefresh()">
+        </ion-refresher>
+        <div style="text-align: center; padding-top: 23px;" ng-if="loading">
+            <ion-spinner></ion-spinner>
+        </div>
+        <ion-list>
+            <ion-item class="item-icon-right" ng-repeat="file in data"
+                      ng-click="videoClicked(file)">
+                <div class="custom-item">
+                    <img class="file-img" ng-src="{{getFileImage(file)}}">
+
+                    <h2 class="custom-item-h2">{{file.name}}</h2>
+
+                    <i ng-if="file.dir" class="icon ion-chevron-right icon-accessory"></i>
+                </div>
+
+                <ion-option-button class="custom-ion-button"
+                                   ng-click="updateFileState(file,1)">
+                    <input type="image" class="slide-img" src="assets/images/icons/state_1.png"/>
+                </ion-option-button>
+                <ion-option-button class="custom-ion-button"
+                                   ng-click="updateFileState(file,2)">
+                    <input type="image" class="slide-img" src="assets/images/icons/state_2.png"/>
+                </ion-option-button>
+            </ion-item>
+        </ion-list>
+    </ion-content>
+</ion-view>

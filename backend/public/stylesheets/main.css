@@ -1,0 +1,33 @@
+.file-img {
+    float: left;
+    height: 31px;
+    padding-right: 10px;
+}
+
+.slide-img {
+    padding: 16px 16px 16px 16px;
+    height: 100%;
+}
+
+.custom-item {
+    padding: 10px;
+}
+
+h2.custom-item-h2 {
+    margin-bottom: 0;
+    vertical-align: middle;
+    line-height: 31px;
+    padding-right: 18px;
+}
+
+.item-complex .item-content, .item-radio, .item-content {
+    padding: 0;
+}
+
+.item-complex.item-icon-right .item-content {
+    padding-right: 0;
+}
+
+.custom-ion-button {
+    padding: 0;
+}

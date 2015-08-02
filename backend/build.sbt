@@ -17,3 +17,8 @@ libraryDependencies ++= Seq(
   cache,
   ws
 )
+
+libraryDependencies ++= Seq(
+  "org.webjars.bower" % "angular-websocket" % "1.0.13",
+  "org.webjars.bower" % "ionic" % "1.0.1"
+)

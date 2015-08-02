@@ -2,17 +2,23 @@ package controllers
 
 import java.io.File
 
-import concurrency.actors.MyWSActor
+import concurrency.actors.{UpdateMsg, FilesUpdater, MyWSActor}
+import messages.FileUpdate
 import models.{DBFile, DBFiles}
 import play.api.Logger
 import play.api.Play.current
 import play.api.db.slick._
+import play.api.libs.concurrent.Akka
 import play.api.libs.json.Json
+import play.api.mvc.WebSocket.FrameFormatter
 import play.api.mvc._
 
 object FilesController extends Controller {
 
+  implicit val fileUpdateFormat = Json.format[FileUpdate]
   implicit val fileFormat = Json.format[DBFile]
+  implicit val fileWSFormat = Json.format[UpdateMsg]
+  implicit val fileWSFrame = FrameFormatter.jsonFrame[UpdateMsg]
 
   // ##############    COMMON USE VARIABLES    ##############
   // TODO: read from an external .conf (i.e: using typesafe's lib) and implement some kind of strategy to change players
@@ -36,6 +42,11 @@ object FilesController extends Controller {
    * The port where the player's web interface is running
    */
   var player_port = play.Play.application().configuration().getString("pi.players.mpc.port")
+
+  /**
+   * References websocket broadcaster's actor
+   */
+  val broadcaster = Akka.system.actorSelection(FilesUpdater.listener)
 
   def index(any: String) = Action {
     Logger.info(s"Index: $any")
@@ -115,14 +126,19 @@ object FilesController extends Controller {
    * Sets the DBFile, which id is <b>id</b> in the data base, to the new <b>status</b>, the position
    * of the video will be overwritten by 0.<br> The position is meant to be automatically updated by
    * <i>concurrency.actors.WSRunnable</i>
-   * @param id the file's id to fetch
-   * @param status the file's new status
    * @return http[200]
    */
-  // TODO: it's possbile that this service shouldn't be public as WSRunnable can't be stopped
-  def updateFile(id: Long, status: Int) = DBAction { implicit rs =>
-    DBFiles.update(id, status, -1)
-    Ok("done")
+  def updateFile() = DBAction (parse.json) { implicit rs =>
+    rs.request.body.validate[FileUpdate].map {
+      file =>
+        Logger.info(s"Update request - $file")
+        DBFiles.updateByID(file.id, file.state) match {
+          case Some(newFile) =>
+            Ok("Updated")
+          case None =>
+            BadRequest("Couldn't update the file")
+        }
+    }.getOrElse(BadRequest("Update request - invalid request"))
   }
 
   def say_hello() = Action {
@@ -139,5 +155,17 @@ object FilesController extends Controller {
 
   def get_log() = Action {
     Ok.sendFile(new File("logs", "application.log")).as("text/plain")
+  }
+
+  /**
+   * This endpoint will broadcast a message whenever a file status
+   * was updated, will not listen to messages, and the message returned
+   * is meaningless
+   */
+  def filesEvents() = WebSocket.acceptWithActor[String, UpdateMsg]{
+    request =>
+      client =>
+        Logger.info(s"Connecting a file_WS ${request.remoteAddress}")
+        FilesUpdater.props(client)
   }
 }

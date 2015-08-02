@@ -34,8 +34,8 @@ class DBFiles(tag: Tag) extends Table[DBFile](tag, "FILE") {
 
 object DBFiles {
 
-  val NEW = 0
-  val PAUSED = 1
+  val PAUSED = 0
+  val NEW = 1
   val FINISHED = 2
 
   val files = TableQuery[DBFiles]
@@ -75,7 +75,8 @@ object DBFiles {
 
   def minDirStatus(dir: DBFiles#TableElementType)(implicit s: Session) = {
     Logger.info(s"minDirStatus(${dir.name})")
-    files.filter(_.name.toLowerCase like dir.name.toLowerCase + "/%")
+    val dummy = new File(dir.parent, dir.name)
+    files.filter(_.parent === dummy.getAbsolutePath)
       .sortBy(_.state.asc).firstOption.get.state
   }
 
@@ -83,59 +84,62 @@ object DBFiles {
    * Updates the <strong>status</strong> of a file identified by
    * <strong>id</strong> propagating upwards the status
    */
-  def update(id: Long, status: Int, position: Long)(implicit s: Session): Unit = {
-    Logger.info(s"Updating $id to $status")
-    findById(id) match {
-      case Some(file) =>
-        Logger.info(s"$id found as ${file.name}")
-        update(file, status, position)
-      case None =>
-        Logger.info(s"$id doesn't exist")
-    }
+  def updateByID(id: Long, status: Int, position: Long = 0)
+            (implicit s: Session): Option[DBFile] = {
+    immersiveUpdate(findById(id), status, position)
   }
-
-  var timestamp = 0L
 
   /**
    * Updates the <strong>status</strong> of a file identified by
    * <strong>id</strong> propagating upwards the status
    */
-  def update(file: File, status: Int, position: Long, manual: Boolean = false)(implicit s: Session): Unit = {
-    val my_timestamp = System.currentTimeMillis
-    // If the update is manual (called by the controller, just update normally
-    // otherwise just update if the last time update was made over 25 mill ago
-    if ((!manual && my_timestamp - timestamp > 25) || manual) {
-      findByFile(file) match {
-        case Some(f) =>
-          Logger.info(s"$f found as ${f.name} id=${f.id}}")
-          update(f, status, position)
-        case None =>
-          Logger.info(s"$file can't be found in the database")
-      }
-      timestamp = my_timestamp
+  def updateByFile(file: File, status: Int, position: Long = 0)
+            (implicit s: Session): Option[DBFile] = {
+    immersiveUpdate(findByFile(file), status, position)
+  }
+
+  private def immersiveUpdate(file: Option[DBFile], status: Int, position: Long)
+                             (implicit s: Session): Option[DBFile] = {
+    file match {
+      case Some(f) =>
+        Logger.info(s"$f found as ${f.name} id=${f.id}} update to $status @ $position")
+        Some(privateUpdate(f, status, position))
+      case None =>
+        Logger.info(s"$file can't be found in the database")
+        None
     }
   }
 
+
   /**
    * Updates the file with a new position
+   * PRE: The file exists
+   * @return The file with its new data
    */
-  private def update(file: DBFiles#TableElementType, status: Int, position: Long)(implicit s: Session): Unit = {
+  private def privateUpdate(file: DBFiles#TableElementType, status: Int, position: Long)
+                    (implicit s: Session): DBFile = {
     Logger.info(s"Updating ${file.name} to $status")
     file.state = status
-    if (position >= 0)
+    if (file.position != position)
       file.position = position
+
+    // Update the file first
     files.filter(_.id === file.id).update(file)
 
-    val parent_name = new File(file.parent, file.name).getParentFile
+    // Retrieve the parent, update it if it's in a different state
+    // (Control the root directory as well)
+    val parent_name = new File(file.parent)
     if (parent_name.getAbsolutePath != FilesController.root_dir) {
       findByFile(parent_name) match {
         case Some(parent) =>
           Logger.info(s"${file.id}'s parent: ${parent.id}:${parent.name}")
-          //          Logger.info(s"parent's status: ${minDirStatus(parent)}")
-          update(parent, minDirStatus(parent), position)
+          if(parent.state != file.state)
+            privateUpdate(parent, minDirStatus(parent), position)
         case _ =>
       }
     }
+
+    file //based on the precondition
   }
 
   /**

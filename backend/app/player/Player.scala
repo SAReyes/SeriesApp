@@ -10,6 +10,8 @@ import util.{TimeOperator, WSResponse}
  * This trait contains all the methods to be used with a player
  */
 trait Player {
+  def setVolume(i: Int): Unit
+
   val exec: String
   val url: String
 
@@ -28,7 +30,7 @@ trait Player {
 
   def get_variables(): Option[WSResponse]
 
-  def update_file_info(): Unit
+  def update_file_info(data: WSResponse): Unit
 
   def execute(file: DBFile): Unit = {
     execute(new File(file.parent,file.name).getAbsolutePath, file.position)

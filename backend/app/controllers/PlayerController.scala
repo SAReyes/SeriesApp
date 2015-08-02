@@ -2,18 +2,18 @@ package controllers
 
 import java.io.File
 
-import concurrency.actors.MyWSActor
+import concurrency.actors.{PingSocket, MyWSActor}
 import models.DBFiles
 import play.api.Logger
 import play.api.db.slick._
-import play.api.libs.json.Json
+import play.api.libs.json.{Format, Json}
 import play.api.mvc.WebSocket.FrameFormatter
-import play.api.mvc.{WebSocket, Action, Controller}
+import play.api.mvc.{Result, WebSocket, Action, Controller}
 import player.Player
 import util.WSResponse
 import play.api.Play.current
 
-object PlayerController extends Controller{
+object PlayerController extends Controller {
 
   // Json implicits
   implicit val ws_response_format = Json.format[WSResponse]
@@ -38,8 +38,8 @@ object PlayerController extends Controller{
    * @param f the function to execute, must be some function from the player trait
    * @return if f's return value is 200 return http[200] else [400]
    */
-  private def exec_wrapper(f: () => Int) = {
-    if(f() == 200){
+  private def execWrapper(f: () => Int) = {
+    if (f() == 200) {
       Ok
     } else {
       BadRequest("No file's being played")
@@ -54,16 +54,16 @@ object PlayerController extends Controller{
    * @return the exec_wrapper result
    */
   private def file_changed_update_state(f: () => Int, new_state: Int = 0)
-                                       (implicit s: Session)= {
+                                       (implicit s: Session) = {
     val prev = player.get_variables()
-    val r = exec_wrapper(f)
+    val r = execWrapper(f)
     prev match {
       case Some(prev_vars) =>
         player.get_variables() match {
           case Some(new_vars) =>
-            if(new_vars.file_path != prev_vars.file_path)
+            if (new_vars.file_path != prev_vars.file_path)
               Logger.info(s"File updated saving ${prev_vars.file_path} as $new_state")
-              DBFiles.update(new File(prev_vars.file_path),new_state,0, manual = true)
+            DBFiles.updateByFile(new File(prev_vars.file_path), new_state, 0)
           case None =>
             Logger.info("None received while reading the variables post-update")
         }
@@ -78,58 +78,73 @@ object PlayerController extends Controller{
   // ###############################################################################
 
   // GET @ /now_playing/play
-  def player_play() = Action {
-    Logger.info("player: play")
-    exec_wrapper(player.play)
+  def playerPlay() = Action {
+    execWrapper(player.play)
   }
 
   // GET @ /now_playing/pause
-  def player_pause() = Action {
-    Logger.info("player: pause")
-    exec_wrapper(player.pause)
+  def playerPause() = Action {
+    execWrapper(player.pause)
   }
 
-  def player_stop() = Action {
-    Logger.info("player: stop")
-    exec_wrapper(player.stop)
+  def playerStop() = Action {
+    execWrapper(player.stop)
   }
 
-  def player_scene_back() = DBAction { implicit rs =>
-    Logger.info("player: scene back")
+  def playerSceneBack() = DBAction { implicit rs =>
     file_changed_update_state(player.scene_back, new_state = DBFiles.NEW)
   }
 
   // TODO when the file changes because of this, save the state as FINISHED
-  def player_scene_forward() = DBAction { implicit rs =>
-    Logger.info("player: scene forward")
+  def playerSceneForward() = DBAction { implicit rs =>
     file_changed_update_state(player.scene_forward, new_state = DBFiles.FINISHED)
   }
 
-  def player_frame_back() = Action {
-    Logger.info("player: frame back")
-    exec_wrapper(player.frame_back)
+  def playerFrameBack() = Action {
+    execWrapper(player.frame_back)
   }
 
-  def player_frame_forward() = Action {
-    Logger.info("player: frame forward")
-    exec_wrapper(player.frame_forward)
+  def playerFrameForward() = Action {
+    execWrapper(player.frame_forward)
   }
 
   // TODO atm this just plays the files in the dir, verify with the database
-  def player_previous_file() = DBAction { implicit rs =>
-    Logger.info("player: previous file in directory saving as:" + DBFiles.NEW)
+  def playerPreviousFile() = DBAction { implicit rs =>
     file_changed_update_state(player.previous_file, new_state = DBFiles.NEW)
   }
 
-  def player_next_file() = DBAction { implicit rs =>
-    Logger.info("player: next file in directory saving as:" + DBFiles.FINISHED)
+  def playerNextFile() = DBAction { implicit rs =>
     file_changed_update_state(player.next_file, new_state = DBFiles.FINISHED)
   }
 
-  def playing_websocket() = WebSocket.acceptWithActor[String,WSResponse]{
+  def playingWebsocket() = WebSocket.acceptWithActor[String, WSResponse] {
     request =>
       client =>
         Logger.info("Websocket connection request")
         MyWSActor.props(client)
+  }
+
+  private def ReadJsonField[T](field: String)
+                              (f: (T) => Unit)
+                              (validResponse: Result, errorResponse: Result)
+                              (implicit formatter: Format[T]) =
+    Action(parse.json) { request =>
+      (request.body \ field).asOpt[T].map { resultData =>
+        f.apply(resultData)
+        validResponse
+      }.getOrElse {
+        errorResponse
+      }
+    }
+
+  def setVolume() = ReadJsonField[Int]("volume") { (volume) =>
+    player.setVolume(volume)
+  }(Ok, BadRequest)
+
+  def pingPoing() = WebSocket.acceptWithActor[String, String] {
+    request =>
+      client =>
+        Logger.info("Ping connection")
+        PingSocket.props(client)
   }
 }

@@ -1,7 +1,7 @@
 import java.io.File
 
 import akka.actor.Props
-import concurrency.actors.{WSListener, WSRunnable}
+import concurrency.actors.{FilesListener, WSListener, WSRunnable}
 import controllers.FilesController
 import models.DBFiles
 import play.api.Play.current
@@ -25,6 +25,7 @@ object Global extends GlobalSettings {
       }
     }
     val listener = Akka.system.actorOf(Props[WSListener], name = "playing_ws")
+    Akka.system.actorOf(Props[FilesListener], name = "files_ws")
     myRunnable = new WSRunnable(listener)
     new Thread(myRunnable).start()
   }
